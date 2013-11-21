@@ -254,8 +254,19 @@ class Cmd:
         dotext = 'do_'+text
         return [a[3:] for a in self.get_names() if a.startswith(dotext)]
 
-    def completer(self, text, state):
-        complete([for text in state])
+    def completer(self, cmd, state):
+        #tree stored here for digging
+        static_tree = self.options_tree
+
+        for i in range(state):
+            level_word = [word for word in static_tree[cmd]]
+            if type(level_word) is dict:
+                static_tree = static_tree[level_word]
+            # we reached the end of the possible iterations, requested content is here
+            elif type(level_word) is list or type(level_word) is str:
+                complete(leve_word,state)
+
+
     def complete(self, text, state):
         """Return the next possible completion for 'text'.
 
