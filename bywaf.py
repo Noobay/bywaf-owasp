@@ -379,9 +379,14 @@ class WAFterpreter(Cmd):
        # register with our list of modules (i.e., insert into our dictionary of modules)
        self.plugins[new_module_name] = new_module
        
-       commands = [f for f in dir(new_module) if f.startswith('do_')]
+       # store command list
+       new_module_dir = dir(new_module)
+       # IMPORTANT: these will pop up when we prompt 'show',
+       # these are NOT all the functions and do not include help_ and complete_
+       # as these are utility functions
+       commands = [f for f in new_module_dir if f.startswith('do_')]
        self.plugins[new_module_name].commands = commands
-       
+
        # give plugin a link to its own path
        self.plugins[new_module_name].plugin_path = filepath
        
@@ -391,27 +396,13 @@ class WAFterpreter(Cmd):
        self.current_plugin_name = new_module_name
        self.current_plugin = new_module
        
-       # add module's functions to the Cmd command list
-       for command_name in new_module.commands:
-           
-           # register the command 
+       # register the utility functions
+       for command_name in new_module_dir:
+           # register the command
            # it is a tuple of the form (function, string)
            command_func = getattr(new_module, command_name)
            setattr(self, command_name, command_func)
 
-           # try and register its optional help function, if one exists
-           try:
-               helpfunc = getattr(new_module, 'help_' + command_name[3:])
-               setattr(self, helpfunc.__name__, helpfunc)
-           except AttributeError:  # help_ not found
-               pass
-
-           # try and register its optional completion function, if one exists
-           try:
-               completefunc = getattr(new_module, 'complete_' + command_name[3:])
-               setattr(self, completefunc.__name__, completefunc)
-           except AttributeError:  # complete__ not found
-               pass
 
    def complete_use(self,text,line,begin_idx,end_idx):
        return self.filename_completer(text, line, begin_idx, end_idx, root_dir=self.global_options['PLUGIN_PATH'])
