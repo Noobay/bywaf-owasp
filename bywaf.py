@@ -397,12 +397,11 @@ class WAFterpreter(Cmd):
        self.current_plugin = new_module
        
        # register the utility functions
-       for command_name in new_module_dir:
+       for command_name in [command for command in new_module_dir if command.startswith('complete_') or command.startswith('help_')]:
            # register the command
            # it is a tuple of the form (function, string)
            command_func = getattr(new_module, command_name)
            setattr(self, command_name, command_func)
-
 
    def complete_use(self,text,line,begin_idx,end_idx):
        return self.filename_completer(text, line, begin_idx, end_idx, root_dir=self.global_options['PLUGIN_PATH'])
