@@ -28,8 +28,15 @@ HISTORY_FILENAME = "bywaf-history.txt"
 # Adar Grof: since this function happens in a new process
 # it can't a method in a class, a class is not picklable by python.
 # also the reason why we create a new instance of the class to do the job.
-def job_delegate(cmd,args):
+def job_delegate(cmd,args,plugins):
+
     delegate = WAFterpreter()
+    print plugins
+    #load the plugins to the new module
+    [delegate._load_module(plugin) for plugin in plugins]
+    ####TODO:load options to the plugins
+
+    print delegate.plugins
     newfunc = getattr(delegate, 'do_' + cmd)
     #value is stored in job.results
     return newfunc(args)
@@ -175,9 +182,10 @@ class WAFterpreter(Cmd):
             if exec_in_background: #and self.current_plugin and cmd in command_names:
                
                 print('backgrounding job {}'.format(self.job_counter))
-                
+
                 # background the job
-                job = self.job_executor.submit(job_delegate, cmd, arg)
+                job = self.job_executor.submit(job_delegate, cmd, arg,[plugin.plugin_path for plugin in self.plugins.values()])
+
                 
                 job.job_id = self.job_counter
                 job.name = self.current_plugin_name + '/' + cmd
@@ -388,10 +396,14 @@ class WAFterpreter(Cmd):
        # register with our list of modules (i.e., insert into our dictionary of modules)
        self.plugins[new_module_name] = new_module
        
-       
-       commands = [f for f in dir(new_module) if f.startswith('do_') or f.startswith('complete_') or f.startswith('help_')]
+       # store command list
+       new_module_dir = dir(new_module)
+       # IMPORTANT: these will pop up when we prompt 'show',
+       # these are NOT all the functions and do not include help_ and complete_
+       # as these are utility functions
+       commands = [f for f in new_module_dir if f.startswith('do_')]
        self.plugins[new_module_name].commands = commands
-       
+
        # give plugin a link to its own path
        self.plugins[new_module_name].plugin_path = filepath
        
@@ -401,27 +413,15 @@ class WAFterpreter(Cmd):
        self.current_plugin_name = new_module_name
        self.current_plugin = new_module
        
-       # add module's functions to the Cmd command list
-       for command_name in new_module.commands:
-           
-           # register the command 
+       # register the utility functions
+       for command_name in new_module_dir:
+           # register the command
            # it is a tuple of the form (function, string)
            command_func = getattr(new_module, command_name)
            setattr(self, command_name, command_func)
 
-           # try and register its optional help function, if one exists
-           try:
-               helpfunc = getattr(new_module, 'help_' + command_name[5:])
-               setattr(self, 'help' + command_name, helpfunc)
-           except:
-               pass 
-               
-           # try and register its optional completion function, if one exists
-           try:
-               completefunc = getattr(new_module, 'complete_' + command_name[10:])
-               setattr(self, 'complete_' + command_name, completefunc)
-           except:
-               pass
+
+
 
            
    # alias use()'s completion function to the filename completer
@@ -781,13 +781,23 @@ class WAFterpreter(Cmd):
          elif words[1]=='options':
              opts = self.current_plugin.options.keys()
              return self.simplecompleter(words, opts, level=2)
-               
 
-    
+
+
 
            
 
+   def  do_complate(self, text, state):
+        text.split()
+        first_level = []
+        [first_level.append(word) if word.startswith(text.split()[0]) else None for word in tree]
 
+        #first level
+        if len(first_level) < 2:
+            return ' '.join(word for word in self.options_tree[first_level[0]])
+        #second level
+        else:
+            return ' '.join(word for word in first_level)
 
 
 
@@ -829,7 +839,7 @@ class WAFterpreter(Cmd):
        elif cmd[0]=='clear':
            self.clear_history()
  
-       
+
    # completion function for the do_history command:  two-level completion (subcommand, then filename)
    def complete_history(self,text,line,begin_idx,end_idx):
        
@@ -928,3 +938,6 @@ if __name__=='__main__':
 
     # begin accepting commands
     interpreter_loop()
+
+
+
